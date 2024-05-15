@@ -1,12 +1,9 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(path C)
+project(path CXX)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-add_subdirectory(extern/minifb)
+add_executable(${PROJECT_NAME} main.cpp data.cpp sampling.cpp function.cpp)
 
-add_executable(MathTest math_test.c vec.h)
-add_test(Name MathTest COMMAND MathTest)
-
-add_executable(${PROJECT_NAME} main.c)
-
-target_link_libraries(${PROJECT_NAME} PRIVATE minifb)
