@@ -4,6 +4,7 @@
 #include <glm/ext.hpp>
 #include <glm/ext/matrix_transform.hpp>
 #include <glm/ext/vector_float3.hpp>
+#include <glm/geometric.hpp>
 #include <glm/glm.hpp>
 #include <optional>
 #include <variant>
@@ -28,10 +29,19 @@ struct DiffuseLight {
   float intensity;
 };
 
+struct ScatterRecord {
+  glm::vec3 dir;
+  glm::vec3 attenuation;
+  bool is_specular{false};
+};
+
 struct Material {
 
-  std::optional<glm::vec3> sample(const glm::vec3 &wo, const glm::vec3 &n,
-                                  RNG &rng) const;
+  static Material make_lambertian(const glm::vec3 &color);
+  static Material make_diffuse_light(const glm::vec3 &color, float intensity);
+
+  std::optional<ScatterRecord> sample(const glm::vec3 &wo, const glm::vec3 &n,
+                                      RNG &rng) const;
 
   float pdf(const glm::vec3 &wo, const glm::vec3 &n, const glm::vec3 &wi) const;
 
@@ -52,8 +62,23 @@ struct HitRecord {
 struct Mesh {
   std::vector<glm::vec3> positions;
   std::vector<uint16_t> indices;
+  Material material;
 
-  bool hit_p(const Ray &ray, float tmin, float tmax) const;
+  float area() const {
+    float res = 0.0;
+    for (int i = 0; i < indices.size(); i += 3) {
+      const auto &v0 = positions[indices[i]];
+      const auto &v1 = positions[indices[i + 1]];
+      const auto &v2 = positions[indices[i + 2]];
+      res += glm::length(glm::cross(v1 - v0, v2 - v0));
+    }
+    return res / 2.0;
+  }
+
+  glm::vec3 sample_point(const glm::vec3 &target, RNG &rng) const;
+  float pdf(const glm::vec3 &origin, const glm::vec3 &dir) const;
+
+  std::optional<float> hit_p(const Ray &ray, float tmin, float tmax) const;
 
   std::optional<HitRecord> hit(const Ray &ray, float tmin, float tmax) const;
 };
@@ -70,9 +95,16 @@ struct Film {
   std::vector<glm::vec3> buffer;
   uint16_t width;
   uint16_t height;
+
+  void set(int x, int y, const glm::vec3 &color) {
+    buffer[y * width + x] = color;
+  }
 };
 
 struct Camera {
+  Camera(const glm::vec3 &eye, const glm::vec3 &target, const glm::vec3 &up,
+         float fov, float aspect);
+
   Transform transform{Transform::from_imodel(default_camera)};
   float fov{45.0};
   float aspect{1.0};
@@ -87,7 +119,9 @@ struct Scene {
   int16_t bounces;
   int16_t samples;
 
-  bool hit_p(const Ray &ray, float tmin, float tmax);
+  void add(const Mesh &mesh) { meshes.push_back(mesh); }
 
-  std::optional<HitRecord> hit(const Ray &ray, float tmin, float tmax);
+  std::optional<float> hit_p(const Ray &ray, float tmin, float tmax) const;
+
+  std::optional<HitRecord> hit(const Ray &ray, float tmin, float tmax) const;
 };
