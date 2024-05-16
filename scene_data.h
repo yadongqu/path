@@ -1,4 +1,5 @@
 #pragma once
+#include "integrator.h"
 #include "rng.h"
 #include <cstdint>
 #include <glm/ext.hpp>
@@ -118,6 +119,10 @@ struct Camera {
 
 struct Scene {
   std::vector<Mesh> meshes;
+  Camera camera;
+  Integrator integrator;
+  uint16_t width;
+  uint16_t height;
   int16_t bounces;
   int16_t samples;
 

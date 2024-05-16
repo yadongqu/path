@@ -2,14 +2,14 @@
 #include <cstdint>
 #include <glm/common.hpp>
 #define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "renderer.h"
 #include "scenes.h"
 #include <stb/stb_image_write.h>
-
-#include "function.h"
 int main() {
-  auto [scene, camera, film, integrator] = build_triangle_scene();
+  auto scene = build_triangle_scene();
   // auto [scene, camera, film] = build_cornell_scene();
-  render(scene, camera, integrator, film);
+
+  auto film = render(scene);
 
   std::vector<uint8_t> data;
 

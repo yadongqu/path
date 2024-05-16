@@ -5,5 +5,5 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-add_executable(${PROJECT_NAME} main.cpp data.cpp sampling.cpp function.cpp util.cpp rng.cpp integrator.cpp)
+add_executable(${PROJECT_NAME} main.cpp scene_data.cpp sampling.cpp renderer.cpp util.cpp rng.cpp integrator.cpp)
 

@@ -1,7 +1,8 @@
 #include "integrator.h"
+#include "scene_data.h"
 #include <ranges>
-glm::dvec3 NormalIntegrator::li(const Ray &ray, const Scene &scene, RNG &rng,
-                                int16_t bounces) const {
+glm::dvec3 NormalIntegrator::li(const Ray &ray, const Scene &scene,
+                                RNG &rng) const {
   auto res = scene.hit(ray, 0.001, std::numeric_limits<double>::max());
   if (!res.has_value()) {
     return glm::dvec3(0.0);
@@ -10,8 +11,8 @@ glm::dvec3 NormalIntegrator::li(const Ray &ray, const Scene &scene, RNG &rng,
   return rec.normal;
 }
 
-glm::dvec3 PathIntegrator::li(const Ray &ray, const Scene &scene, RNG &rng,
-                              int16_t bounces) const {
+glm::dvec3 PathIntegrator::trace_path(const Ray &ray, const Scene &scene,
+                                      RNG &rng, int16_t bounces) const {
   if (bounces <= 0) {
     return glm::dvec3(0.0);
   }
@@ -62,14 +63,18 @@ glm::dvec3 PathIntegrator::li(const Ray &ray, const Scene &scene, RNG &rng,
   auto scatter_pdf = material.pdf(-ray.dir, rec.normal, next_dir);
   // printf("scatter pdf %f\n", scatter_pdf);
   auto scattered_color = scatter_record.attenuation * scatter_pdf *
-                         li(next_ray, scene, rng, bounces - 1) / pdf;
+                         trace_path(next_ray, scene, rng, bounces - 1) / pdf;
 
   return emitted + scattered_color;
 }
 
-glm::dvec3 Integrator::li(const Ray &ray, const Scene &scene, RNG &rng,
-                          int16_t bounces) const {
+glm::dvec3 PathIntegrator::li(const Ray &ray, const Scene &scene,
+                              RNG &rng) const {
+  return trace_path(ray, scene, rng, scene.bounces);
+}
 
-  return std::visit([&](auto &&i) { return i.li(ray, scene, rng, bounces); },
+glm::dvec3 Integrator::li(const Ray &ray, const Scene &scene, RNG &rng) const {
+
+  return std::visit([&](auto &&i) { return i.li(ray, scene, rng); },
                     integrator);
 }

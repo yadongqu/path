@@ -1,29 +1,34 @@
 #pragma once
-#include "data.h"
 #include "integrator.h"
-#include <tuple>
+#include "scene_data.h"
+#include <cstdint>
 
-std::tuple<Scene, Camera, Film, Integrator> build_triangle_scene() {
+Scene build_triangle_scene() {
   auto white = Material::make_lambertian(glm::vec3(1.0));
   auto triangle_mesh =
       Mesh{.positions = {glm::vec3(0.0, 1.0, 0.0), glm::vec3(-1.0, -1.0, 0.0),
                          glm::vec3(1.0, -1.0, 0.0)},
            .indices = {0, 1, 2},
            .material = white};
-
+  uint16_t width = 512;
+  uint16_t height = 512;
+  double aspect = (double)width / (double)height;
+  Camera camera(glm::vec3(0.0, 0.0, 3.0), glm::vec3(0.0, 0.0, 0.0),
+                glm::vec3(0.0, 1.0, 0.0), 45.0, aspect);
   Scene scene = {
       .meshes = {triangle_mesh},
+      .camera = camera,
+      .integrator = Integrator::make_normal(),
+      .width = width,
+      .height = height,
       .bounces = 5,
       .samples = 10,
   };
-  Film film{.width = 512, .height = 512};
-  Camera camera(glm::vec3(0.0, 0.0, 3.0), glm::vec3(0.0, 0.0, 0.0),
-                glm::vec3(0.0, 1.0, 0.0), 45.0,
-                (double)film.width / (double)film.height);
-  return {scene, camera, film, Integrator::make_normal()};
+
+  return scene;
 }
 
-std::tuple<Scene, Camera, Film, Integrator> build_cornell_scene() {
+Scene build_cornell_scene() {
   auto white = Material::make_lambertian(glm::vec3(1.0));
   auto red = Material::make_lambertian(glm::vec3(1.0, 0.0, 0.0));
   auto green = Material::make_lambertian(glm::vec3(0.0, 1.0, 0.0));
@@ -130,24 +135,23 @@ std::tuple<Scene, Camera, Film, Integrator> build_cornell_scene() {
           },
       .material = white};
 
-  Scene scene;
-
-  scene.add(floor);
-  scene.add(ceiling);
-  scene.add(back_wall);
-  scene.add(left_wall);
-  scene.add(right_wall);
-  scene.add(light);
-  scene.add(short_block);
-  scene.add(tall_block);
-
-  auto film = Film{.width = 512, .height = 512};
-
-  auto aspect = (float)film.width / (float)film.height;
+  int16_t width = 512;
+  int16_t height = 512;
+  double aspect = (double)width / (double)height;
   auto camera =
       Camera(glm::vec3(278.0, 273.0, -800.0), glm::vec3(278.0, 273.0, 0.0),
              glm::vec3(0.0, 1.0, 0.0), 45.0, aspect);
   auto integrator = Integrator::make_path();
+  Scene scene{
+      .meshes = {floor, ceiling, back_wall, left_wall, right_wall, short_block,
+                 tall_block},
+      .camera = camera,
+      .integrator = integrator,
+      .width = 512,
+      .height = 512,
+      .bounces = 5,
+      .samples = 10,
+  };
 
-  return {scene, camera, film, integrator};
+  return scene;
 }

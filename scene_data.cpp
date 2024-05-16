@@ -1,4 +1,4 @@
-#include "data.h"
+#include "scene_data.h"
 #include "sampling.h"
 #include "util.h"
 #include <cassert>
