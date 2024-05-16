@@ -1,6 +1,8 @@
 #include "data.h"
 #include "sampling.h"
 #include "util.h"
+#include <cassert>
+#include <cstdio>
 #include <glm/common.hpp>
 #include <glm/ext/matrix_transform.hpp>
 #include <glm/fwd.hpp>
@@ -10,21 +12,22 @@
 #include <optional>
 
 #include <variant>
-Material Material::make_lambertian(const glm::vec3 &color) {
+Material Material::make_lambertian(const glm::dvec3 &color) {
   return Material{.m = Lambertian{.color = color}};
 }
-Material Material::make_diffuse_light(const glm::vec3 &color, float intensity) {
+Material Material::make_diffuse_light(const glm::dvec3 &color,
+                                      double intensity) {
   return Material{.m = DiffuseLight{.color = color, .intensity = intensity}};
 }
 
-glm::vec3 Material::emit() const {
+glm::dvec3 Material::emit() const {
   return std::visit(
       [](auto &&material) {
         using T = std::decay_t<decltype(material)>;
         if constexpr (std::is_same_v<T, DiffuseLight>) {
           return material.color * material.intensity;
         } else {
-          return glm::vec3(0.0);
+          return glm::dvec3(0.0);
         }
       },
       m);
@@ -44,21 +47,21 @@ bool Material::is_light() const {
 }
 
 std::optional<ScatterRecord>
-Material::sample(const glm::vec3 &wo, const glm::vec3 &n, RNG &rng) const {
+Material::sample(const glm::dvec3 &wo, const glm::dvec3 &n, RNG &rng) const {
   std::optional<ScatterRecord> res{std::nullopt};
   return std::visit(
       [&](auto &&material) {
         using T = std::decay_t<decltype(material)>;
         if constexpr (std::is_same_v<T, Lambertian>) {
-          if (glm::dot(wo, n) < 0.0) {
-            return res;
-          }
+          // if (glm::dot(wo, n) <= 0.0) {
+          //   return res;
+          // }
           auto sample = sample_hemisphere_cosine(rng.next_1f(), rng.next_1f());
-          glm::vec3 a = glm::abs(n.x) > 0.9 ? glm::vec3(0.0, 1.0, 0.0)
-                                            : glm::vec3(1.0, 0.0, 0.0);
-          glm::vec3 v = glm::cross(n, a);
-          glm::vec3 u = glm::cross(n, v);
-          glm::vec3 dir = u * sample.x + v * sample.y + n * sample.z;
+          glm::dvec3 a = glm::abs(n.x) > 0.9 ? glm::dvec3(0.0, 1.0, 0.0)
+                                             : glm::dvec3(1.0, 0.0, 0.0);
+          glm::dvec3 v = glm::normalize(glm::cross(n, a));
+          glm::dvec3 u = glm::normalize(glm::cross(n, v));
+          glm::dvec3 dir = u * sample.x + v * sample.y + n * sample.z;
           res = std::make_optional(ScatterRecord{.dir = glm::normalize(dir),
                                                  .attenuation = material.color,
                                                  .is_specular = false});
@@ -70,15 +73,15 @@ Material::sample(const glm::vec3 &wo, const glm::vec3 &n, RNG &rng) const {
       m);
 }
 
-float Material::pdf(const glm::vec3 &wo, const glm::vec3 &n,
-                    const glm::vec3 &wi) const {
+double Material::pdf(const glm::dvec3 &wo, const glm::dvec3 &n,
+                     const glm::dvec3 &wi) const {
   return std::visit(
       [&](auto &&material) {
         using T = std::decay_t<decltype(material)>;
         if constexpr (std::is_same_v<T, Lambertian>) {
           return sample_hemisphere_cosine_pdf(n, wi);
         } else {
-          return 0.0f;
+          return 0.0;
         }
       },
       m);
@@ -94,38 +97,51 @@ Transform Transform::from_model(const glm::mat4 &model) {
   return Transform{.model = model, .imodel = imodel};
 }
 
-Ray Camera::get_ray(float s, float t) const {
+Ray Camera::get_ray(double s, double t) const {
   auto theta = glm::radians(fov);
   auto half_height = glm::tan(theta / 2.0);
   auto half_width = aspect * half_height;
-  auto origin = glm::vec3(transform.model[3]);
-  auto dir = glm::vec3(transform.model *
-                       glm::vec4(s * half_width, t * half_height, -1.0, 0.0));
+
+  auto origin = glm::dvec3(transform.model[3]);
+  // printf("%f %f %f\n", origin.x, origin.y, origin.z);
+  auto dir = glm::dvec3(transform.model *
+                        glm::dvec4(s * half_width, t * half_height, -1.0, 0.0));
   return Ray{.origin = origin, .dir = glm::normalize(dir)};
 }
 
-std::optional<HitRecord> Mesh::hit(const Ray &ray, float tmin,
-                                   float tmax) const {
+std::optional<HitRecord> Mesh::hit(const Ray &ray, double tmin,
+                                   double tmax) const {
   std::optional<HitRecord> res{std::nullopt};
-  float closest_so_far = tmax;
+  double closest_so_far = tmax;
   for (int i = 0; i < indices.size(); i += 3) {
     const auto &v0 = positions[indices[i]];
     const auto &v1 = positions[indices[i + 1]];
     const auto &v2 = positions[indices[i + 2]];
-    float t;
+    double t;
     if (ray_triangle_intersect(ray, v0, v1, v2, t) && t > tmin &&
         t < closest_so_far) {
+      // printf("hit\n");
       if (res.has_value()) {
         res->position = ray.at(t);
         res->t = t;
         res->normal = glm::normalize(glm::cross(v1 - v0, v2 - v0));
+        res->is_inside = false;
+        if (glm::dot(ray.dir, res->normal) > 0.0) {
+          res->normal = -res->normal;
+          res->is_inside = true;
+        }
       } else {
         res = std::make_optional(HitRecord{
             .position = ray.at(t),
             .normal = glm::normalize(glm::cross(v1 - v0, v2 - v0)),
             .t = t,
             .mesh = this,
+            .is_inside = false,
         });
+        if (glm::dot(ray.dir, res->normal) > 0.0) {
+          res->normal = -res->normal;
+          res->is_inside = true;
+        }
       }
       closest_so_far = t;
     }
@@ -133,14 +149,15 @@ std::optional<HitRecord> Mesh::hit(const Ray &ray, float tmin,
   return res;
 }
 
-std::optional<float> Mesh::hit_p(const Ray &ray, float tmin, float tmax) const {
+std::optional<double> Mesh::hit_p(const Ray &ray, double tmin,
+                                  double tmax) const {
   bool is_hit;
-  float closest_so_far = tmax;
+  double closest_so_far = tmax;
   for (int i = 0; i < indices.size(); i += 3) {
     const auto &v0 = positions[indices[i]];
     const auto &v1 = positions[indices[i + 1]];
     const auto &v2 = positions[indices[i + 2]];
-    float t;
+    double t;
     if (ray_triangle_intersect(ray, v0, v1, v2, t) && t > tmin &&
         t < closest_so_far) {
       closest_so_far = t;
@@ -151,10 +168,10 @@ std::optional<float> Mesh::hit_p(const Ray &ray, float tmin, float tmax) const {
   return res;
 }
 
-std::optional<float> Scene::hit_p(const Ray &ray, float tmin,
-                                  float tmax) const {
+std::optional<double> Scene::hit_p(const Ray &ray, double tmin,
+                                   double tmax) const {
   bool is_hit = false;
-  float closest_so_far = tmax;
+  double closest_so_far = tmax;
   for (int i = 0; i < meshes.size(); i++) {
     auto res = meshes[i].hit_p(ray, tmin, closest_so_far);
     if (res.has_value()) {
@@ -166,33 +183,39 @@ std::optional<float> Scene::hit_p(const Ray &ray, float tmin,
   return res;
 }
 
-glm::vec3 Mesh::sample_point(const glm::vec3 &target, RNG &rng) const {
-  auto index = (int)glm::floor(rng.next_1f() * (float)indices.size() / 3.0f);
+glm::dvec3 Mesh::sample_point(const glm::dvec3 &target, RNG &rng) const {
+  auto index = (int)glm::floor(rng.next_1f() * (double)indices.size() / 3.0f);
   const auto &v0 = positions[indices[index * 3]];
   const auto &v1 = positions[indices[index * 3 + 1]];
   const auto &v2 = positions[indices[index * 3 + 2]];
   auto v = rng.next_1f();
   auto u = rng.next_1f();
-  if (u + v > 1.0f) {
+  if (u + v > 1.0) {
     u = 1.0 - u;
     v = 1.0 - v;
   }
   return v0 + (v1 - v0) * u + (v2 - v0) * v;
 }
 
-float Mesh::pdf(const glm::vec3 &origin, const glm::vec3 &dir) const {
+double Mesh::pdf(const glm::dvec3 &origin, const glm::dvec3 &dir) const {
   Ray ray{.origin = origin, .dir = dir};
-  auto hit = hit_p(ray, 0.0001f, std::numeric_limits<float>::max());
-  if (hit.has_value()) {
-    return 1.0 / area();
+  auto h = hit(ray, 0.0001, std::numeric_limits<double>::max());
+  if (h.has_value()) {
+    auto &rec = h.value();
+    auto distance_squard = rec.t * rec.t;
+    auto cosine = glm::max(glm::dot(-ray.dir, rec.normal), 0.0);
+    if (cosine < 0.0001) {
+      return 0.0;
+    }
+    return distance_squard / (cosine * area());
   }
-  return 0.0f;
+  return 0.0;
 }
 
-std::optional<HitRecord> Scene::hit(const Ray &ray, float tmin,
-                                    float tmax) const {
+std::optional<HitRecord> Scene::hit(const Ray &ray, double tmin,
+                                    double tmax) const {
   std::optional<HitRecord> rec{std::nullopt};
-  float closest_so_far = tmax;
+  double closest_so_far = tmax;
   for (int i = 0; i < meshes.size(); i++) {
     auto res = meshes[i].hit(ray, tmin, closest_so_far);
     if (res.has_value()) {
@@ -204,8 +227,8 @@ std::optional<HitRecord> Scene::hit(const Ray &ray, float tmin,
   return rec;
 }
 
-Camera::Camera(const glm::vec3 &eye, const glm::vec3 &target,
-               const glm::vec3 &up, float fov, float aspect) {
+Camera::Camera(const glm::dvec3 &eye, const glm::dvec3 &target,
+               const glm::dvec3 &up, double fov, double aspect) {
   this->fov = fov;
   this->aspect = aspect;
   this->transform = Transform::from_imodel(glm::lookAt(eye, target, up));

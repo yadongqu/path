@@ -1,14 +1,14 @@
 #include "util.h"
 
-bool ray_triangle_intersect(const Ray &ray, const glm::vec3 &v0,
-                            const glm::vec3 &v1, const glm::vec3 &v2,
-                            float &t) {
+bool ray_triangle_intersect(const Ray &ray, const glm::dvec3 &v0,
+                            const glm::dvec3 &v1, const glm::dvec3 &v2,
+                            double &t) {
 
   auto e1 = v1 - v0;
   auto e2 = v2 - v0;
   auto h = glm::cross(ray.dir, e2);
   auto a = glm::dot(e1, h);
-  if (a > -0.00001 && a < 0.00001) {
+  if (glm::abs(a) < 0.0001) {
     return false;
   }
   auto f = 1.0 / a;

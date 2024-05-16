@@ -4,10 +4,10 @@
 struct RNG {
   std::random_device m_rd;
   std::mt19937 m_gen;
-  std::uniform_real_distribution<float> m_dis;
+  std::uniform_real_distribution<double> m_dis;
 
-  RNG() : m_gen(m_rd()), m_dis(0.0f, 1.0f) {}
+  RNG() : m_gen(m_rd()), m_dis(0.0, 1.0) {}
 
-  float next_1f();
-  glm::vec2 next_2f();
+  double next_1f();
+  glm::dvec2 next_2f();
 };

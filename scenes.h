@@ -2,10 +2,10 @@
 #include "data.h"
 #include <tuple>
 std::tuple<Scene, Camera, Film> build_cornell_scene() {
-  auto white = Material::make_lambertian(glm::vec3(1.0f));
-  auto red = Material::make_lambertian(glm::vec3(1.0f, 0.0, 0.0));
-  auto green = Material::make_lambertian(glm::vec3(0.0f, 1.0f, 0.0f));
-  auto light_material = Material::make_diffuse_light(glm::vec3(1.0f), 20.0f);
+  auto white = Material::make_lambertian(glm::vec3(1.0));
+  auto red = Material::make_lambertian(glm::vec3(1.0, 0.0, 0.0));
+  auto green = Material::make_lambertian(glm::vec3(0.0, 1.0, 0.0));
+  auto light_material = Material::make_diffuse_light(glm::vec3(1.0), 20.0);
   // auto metal = Material::(glm::vec3(0.8, 0.85, 0.88));
 
   auto floor = Mesh{.positions =
@@ -122,9 +122,9 @@ std::tuple<Scene, Camera, Film> build_cornell_scene() {
   auto film = Film{.width = 512, .height = 512};
 
   auto aspect = (float)film.width / (float)film.height;
-  auto camera = Camera(glm::vec3(278.0f, 273.0f, -800.0f),
-                       glm::vec3(278.0f, 273.0f, 0.0f),
-                       glm::vec3(0.0f, 1.0f, 0.0f), 45.0f, aspect);
+  auto camera =
+      Camera(glm::vec3(278.0, 273.0, -800.0), glm::vec3(278.0, 273.0, 0.0),
+             glm::vec3(0.0, 1.0, 0.0), 45.0, aspect);
 
   return {scene, camera, film};
 }
