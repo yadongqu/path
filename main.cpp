@@ -7,10 +7,9 @@
 
 #include "function.h"
 int main() {
-  auto [scene, camera, film] = build_cornell_scene();
-  scene.samples = 50;
-  scene.bounces = 8;
-  render(scene, camera, film);
+  auto [scene, camera, film, integrator] = build_triangle_scene();
+  // auto [scene, camera, film] = build_cornell_scene();
+  render(scene, camera, integrator, film);
 
   std::vector<uint8_t> data;
 

@@ -1,5 +1,6 @@
 #include "function.h"
 #include "data.h"
+#include "integrator.h"
 #include "rng.h"
 #include <algorithm>
 #include <cstdio>
@@ -22,7 +23,7 @@ glm::dvec3 trace_ray(const Ray &ray, const Scene &scene, RNG &rng,
   // printf("hit\n");
   auto rec = res.value();
 
-  // return rec.normal;
+  return rec.normal;
   // return rec.normal;
   auto mesh = rec.mesh;
   auto material = mesh->material;
@@ -75,7 +76,8 @@ struct Tile {
   std::vector<glm::dvec3> buffer;
 };
 
-void render(const Scene &scene, const Camera &camera, Film &film) {
+void render(const Scene &scene, const Camera &camera,
+            const Integrator &integrator, Film &film) {
   auto height = film.height;
   auto width = film.width;
   auto samples = scene.samples;
@@ -117,7 +119,8 @@ void render(const Scene &scene, const Camera &camera, Film &film) {
   // }
 
   auto do_render = [](const Scene &scene, const Camera &camera,
-                      const Film &film, Tile &tile) {
+                      const Integrator &integrator, const Film &film,
+                      Tile &tile) {
     RNG rng{};
     tile.buffer.resize(tile.width * tile.height);
     for (int y = 0; y < tile.height; y++) {
@@ -133,7 +136,7 @@ void render(const Scene &scene, const Camera &camera, Film &film) {
 
           // color += glm::abs(ray.dir);
 
-          color += trace_ray(ray, scene, rng, scene.bounces);
+          color += integrator.li(ray, scene, rng, scene.bounces);
           // printf("color %f %f %f\n", color.x, color.y, color.z);
           // assert(!glm::isnan(color.x) && !glm::isnan(color.y) &&
           //        !glm::isnan(color.z));
@@ -148,9 +151,9 @@ void render(const Scene &scene, const Camera &camera, Film &film) {
 
   for (int i = 0; i < tiles.size(); i++) {
     auto &tile = tiles[i];
-    tile_render.push_back(std::async(std::launch::async, do_render,
-                                     std::ref(scene), std::ref(camera),
-                                     std::ref(film), std::ref(tile)));
+    tile_render.push_back(std::async(
+        std::launch::async, do_render, std::ref(scene), std::ref(camera),
+        std::ref(integrator), std::ref(film), std::ref(tile)));
   }
   for (int i = 0; i < tile_render.size(); i++) {
     auto done = tile_render[i].get();
