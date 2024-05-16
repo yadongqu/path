@@ -1,3 +1,12 @@
 [submodule "extern/minifb"]
 	path = extern/minifb
 	url = https://github.com/emoon/minifb.git
+[submodule "extern/fast_float"]
+	path = extern/fast_float
+	url = https://github.com/fastfloat/fast_float.git
+[submodule "extern/json"]
+	path = extern/json
+	url = https://github.com/nlohmann/json.git
+[submodule "extern/pugixml"]
+	path = extern/pugixml
+	url = https://github.com/zeux/pugixml.git
