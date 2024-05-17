@@ -11,7 +11,6 @@
 #include <unordered_map>
 #include <utility>
 namespace Mitsuba {
-
 static std::unordered_map<std::string, Sampler> samplers;
 static std::unordered_map<std::string, int> integers;
 static std::unordered_map<std::string, Integrator> integrators;
@@ -50,8 +49,8 @@ float parse_float(pugi::xml_node &node) {
   return node.attribute("value").as_float();
 }
 
-std::optional<std::string> parse_reference_key(pugi::xml_node &node) {
-  auto value = std::string(node.attribute("value").as_string());
+std::optional<std::string> parse_reference_key(pugi::xml_node &node, const char* attribute_name ="value") {
+  auto value = std::string(node.attribute(attribute_name).as_string());
   if (value.length() > 0 && value.at(0) == '$') {
     auto key = value.substr(1);
     return key;
@@ -94,11 +93,12 @@ Sampler parse_sampler(pugi::xml_node &node) {
   auto type = node.attribute("type").value();
   Sampler sampler;
   if (strcmp(type, "independent") == 0) {
-    sampler.type = IDEPENDENT;
+    sampler.type = INDEPENDENT;
   }
   auto sample_count_node =
-      node.find_child_by_attribute("integer", "sample_count");
+      node.find_child_by_attribute("name", "sample_count");
   sampler.spp = parse_integer(sample_count_node);
+  return sampler;
 }
 
 FileFormat parse_file_format(pugi::xml_node &node) {
@@ -149,11 +149,11 @@ Film parse_film(pugi::xml_node &node) {
 
 Integrator parse_integrator(pugi::xml_node &node) {
   assert(strcmp(node.name(), "integrator") == 0);
-  auto res = parse_reference_key(node);
+  auto res = parse_reference_key(node, "type");
   if (res.has_value()) {
     auto key = res.value();
     if (integrators.contains(key)) {
-      auto integrator = integrators.at(key);
+      auto& integrator = integrators.at(key);
       auto depth_node = node.find_child_by_attribute("name", "max_depth");
       integrator.max_depth = parse_integer(depth_node);
       return integrators.at(key);
@@ -171,7 +171,7 @@ Camera parse_camera(pugi::xml_node &node) {
   if (strcmp(type, "perspective") == 0) {
     camera.type = PERSPECTIVE;
     for (auto child = node.first_child(); child; child = child.next_sibling()) {
-      if (strcmp(child.attribute("type").value(), "fov") == 0) {
+      if (strcmp(child.attribute("name").value(), "fov") == 0) {
         camera.fov = parse_float(child);
       } else if (strcmp(child.name(), "transform") == 0) {
         auto t = child.attribute("name").value();
@@ -179,9 +179,19 @@ Camera parse_camera(pugi::xml_node &node) {
           camera.transform = parse_transform(child);
         }
       } else if (strcmp(child.name(), "sampler") == 0) {
+          // auto type = child.attribute("type").value();
+          // if (strcmp(type, "independent") == 0) {
+          //     camera.sampler.type= INDEPENDENT;
+          //     auto spp_node = child.find_child_by_attribute("name", "sample_count");
+          //     camera.sampler.spp = parse_integer(spp_node);
+          // }
+          camera.sampler = parse_sampler(child);
+      } else if(strcmp(child.name(), "film") == 0) {
+          camera.film = parse_film(child);
       }
     }
   }
+  return camera;
 }
 
 std::array<float, 3> parse_rgb(pugi::xml_node &node) {
@@ -195,7 +205,7 @@ std::array<float, 3> parse_rgb(pugi::xml_node &node) {
   return values;
 }
 
-BSDF parse_bsdf(pugi::xml_node &node) {
+void parse_bsdf(pugi::xml_node &node) {
   assert(strcmp(node.name(), "bsdf") == 0);
   BSDF bsdf;
   auto id = node.attribute("id").value();
@@ -214,76 +224,60 @@ BSDF parse_bsdf(pugi::xml_node &node) {
     bsdf.reflect = rgb;
   }
   bsdfs.insert(std::make_pair(id, bsdf));
-  return bsdf;
 }
 
-} // namespace Mitsuba
-
-glm::dvec3 to_vector3(const std::string &str) {}
-
-bool parse_camera(pugi::xml_node &node, Camera &camera) {
-  if (strcmp(node.attribute("type").value(), "perspective") == 0) {
-    for (auto child = node.first_child(); child; child = child.next_sibling()) {
-      if (strcmp(child.attribute("name").value(), "fov") == 0) {
-        camera.fov = child.attribute("value").as_float();
-      } else if (strcmp(child.name(), "transform") == 0) {
-        float values[16]{};
-        auto tokens =
-            tokenize(child.child("matrix").attribute("value").value());
-
-        if (tokens.size() != 16) {
-          printf("wrong tokens\n");
-        }
-        for (int i = 0; i < 16; i++) {
-          values[i] = to_float(tokens[i]);
-        }
-
-        glm::mat4 model;
-        memcpy(glm::value_ptr(model), values, sizeof(values));
-        camera.transform = Transform::from_model(model);
-      }
-
-      else if (strcmp(child.name(), "sampler") == 0) {
-        // ignore for now
-      } else if (strcmp(child.name(), "film") == 0) {
-        // ignore fow now
-      } else {
-        printf("unknown %s\n", child.name());
-      }
-    }
-  } else {
-    // printf("unsupported camera type\n");
+Shape parse_shape(pugi::xml_node &node) {
+  assert(strcmp(node.name(), "shape") == 0);
+  auto type = node.attribute("type").value();
+  Shape shape;
+  if (strcmp(type, "cube") == 0) {
+    shape.type = CUBE;
+  } else if (strcmp(type, "rectangle") == 0) {
+    shape.type = RECTANGLE;
   }
+  for (auto child = node.first_child(); child; child = child.next_sibling()) {
+    if (strcmp(child.name(), "transform") == 0) {
+      shape.transform = parse_transform(child);
+    } else if (strcmp(child.name(), "ref") == 0) {
+      shape.bsdf = bsdfs.at(child.attribute("id").value());
+    }
+  }
+  return shape;
 }
 
-bool load_scene(const std::string &path, Scene &scene) {
+bool load_scene(const char *path) {
+    Scene scene;
   pugi::xml_document doc;
-  pugi::xml_parse_result result = doc.load_file(path.c_str());
+  pugi::xml_parse_result result = doc.load_file(path);
   if (!result) {
-    printf("failed to load scene %s\n", path.c_str());
+    printf("failed to load scene %s\n", path);
   }
   pugi::xml_node scene_node = doc.child("scene");
-  Integrator integrator;
   for (auto child = scene_node.first_child(); child;
        child = child.next_sibling()) {
     if (strcmp(child.name(), "default") == 0) {
-      auto name = child.attribute("name").value();
-      if (strcmp(name, "integrator") == 0) {
-        if (strcmp(child.attribute("value").value(), "path")) {
-          scene.integrator = Integrator::make_path();
+      if (strcmp(child.attribute("name").value(), "integrator") == 0) {
+        if (strcmp(child.attribute("value").value(), "path") == 0) {
+          integrators.insert(
+              std::make_pair("integrator", Integrator{.type = PATH}));
         }
-      } else if (strcmp(name, "spp") == 0) {
-        scene.samples = child.attribute("value").as_int();
-      } else if (strcmp(name, "resx") == 0) {
-        scene.width = child.attribute("value").as_int();
-      } else if (strcmp(name, "resy") == 0) {
-        scene.height = child.attribute("value").as_int();
-      } else if (strcmp(name, "max_depth") == 0) {
-        scene.bounces = child.attribute("value").as_int();
+      } else {
+        integers.insert(std::make_pair(child.attribute("name").value(),
+                                       child.attribute("value").as_int()));
       }
-    } else if (strcmp(child.name(), "sensor") == 0) {
-      parse_camera(child, scene.camera);
+    }
+    else if(strcmp(child.name(), "integrator") == 0) {
+        auto integrator = parse_integrator(child);
+        scene.integrator = integrator;
+    } else if(strcmp(child.name(), "sensor") == 0) {
+        scene.camera = parse_camera(child);
+    } else if(strcmp(child.name(), "bsdf") == 0) {
+        parse_bsdf(child);
+    } else if(strcmp(child.name(), "shape") == 0) {
+        scene.shapes.push_back(parse_shape(child));
     }
   }
   return true;
 }
+
+} // namespace Mitsuba

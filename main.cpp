@@ -37,5 +37,5 @@ int main() {
   // stbi_write_png("output.png", film.width, film.height, 3, data.data(),
   //                film.width * 3);
 
-  load_scene("../cornell-box/scene.xml", scene);
+  Mitsuba::load_scene("../cornell-box/scene.xml");
 }

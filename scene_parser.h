@@ -14,12 +14,13 @@ enum FilterType {
   TENT,
 };
 
-enum SamplerType { IDEPENDENT };
+enum SamplerType { INDEPENDENT };
 
 enum BSDFType { DIFFUSE };
 
 enum ShapeType {
   RECTANGLE,
+  CUBE,
 };
 
 enum EmitterType { AREA };
@@ -69,9 +70,16 @@ struct Emitter {
 };
 
 struct Shape {
-  ShapeType rectangle;
-  std::array<float, 16> to_world;
+  ShapeType type;
+  std::array<float, 16> transform;
+  BSDF bsdf;
 };
-} // namespace Mitsuba
 
-bool load_scene(const std::string &path, Scene &scene);
+struct Scene {
+    Integrator integrator;
+    Camera camera;
+    std::vector<Shape> shapes;
+};
+
+bool load_scene(const char *path);
+} // namespace Mitsuba
