@@ -1,6 +1,7 @@
 #pragma once
-#include "scene_data.h"
 #include <array>
+#include <optional>
+#include <vector>
 namespace Mitsuba {
 enum FileFormat {
   OPENEXR,
@@ -76,10 +77,10 @@ struct Shape {
 };
 
 struct Scene {
-    Integrator integrator;
-    Camera camera;
-    std::vector<Shape> shapes;
+  Integrator integrator;
+  Camera camera;
+  std::vector<Shape> shapes;
 };
 
-bool load_scene(const char *path);
+std::optional<Scene> load_scene(const char *path);
 } // namespace Mitsuba

@@ -1,53 +1,49 @@
 #pragma once
 #include "integrator.h"
-#include "rng.h"
 #include <cstdint>
-#include <glm/ext.hpp>
-#include <glm/ext/matrix_transform.hpp>
-#include <glm/ext/vector_double3.hpp>
-#include <glm/geometric.hpp>
-#include <glm/glm.hpp>
 #include <optional>
 #include <variant>
 #include <vector>
 
-const glm::mat4 default_camera = glm::lookAt(
-    glm::dvec3(0.0, 0.0, 1.0), glm::dvec3(0.0), glm::dvec3(0.0, 1.0, 0.0));
+#include "flow_math.h"
+
+namespace flow {
+const mat4f default_camera =
+    glm::lookAt(vec3f(0.0, 0.0, 1.0), vec3f(0.0), vec3f(0.0, 1.0, 0.0));
 
 struct Ray {
-  glm::dvec3 origin;
-  glm::dvec3 dir;
+  vec3f origin;
+  vec3f dir;
 
-  glm::dvec3 at(double t) const { return origin + dir * t; }
+  vec3f at(double t) const { return origin + dir * t; }
 };
 
 struct Lambertian {
-  glm::dvec3 color;
+  vec3f color;
 };
 
 struct DiffuseLight {
-  glm::dvec3 color;
+  vec3f color;
   double intensity;
 };
 
 struct ScatterRecord {
-  glm::dvec3 dir;
-  glm::dvec3 attenuation;
+  vec3f dir;
+  vec3f attenuation;
   bool is_specular{false};
 };
 
 struct Material {
 
-  static Material make_lambertian(const glm::dvec3 &color);
-  static Material make_diffuse_light(const glm::dvec3 &color, double intensity);
+  static Material make_lambertian(const vec3f &color);
+  static Material make_diffuse_light(const vec3f &color, double intensity);
 
-  std::optional<ScatterRecord> sample(const glm::dvec3 &wo, const glm::dvec3 &n,
+  std::optional<ScatterRecord> sample(const vec3f &wo, const vec3f &n,
                                       RNG &rng) const;
 
-  double pdf(const glm::dvec3 &wo, const glm::dvec3 &n,
-             const glm::dvec3 &wi) const;
+  double pdf(const vec3f &wo, const vec3f &n, const vec3f &wi) const;
 
-  glm::dvec3 emit() const;
+  vec3f emit() const;
 
   bool is_light() const;
 
@@ -55,15 +51,15 @@ struct Material {
 };
 
 struct HitRecord {
-  glm::dvec3 position;
-  glm::dvec3 normal;
+  vec3f position;
+  vec3f normal;
   double t;
   const class Mesh *mesh;
   bool is_inside = false;
 };
 
 struct Mesh {
-  std::vector<glm::dvec3> positions;
+  std::vector<vec3f> positions;
   std::vector<uint16_t> indices;
   Material material;
 
@@ -78,8 +74,8 @@ struct Mesh {
     return res / 2.0;
   }
 
-  glm::dvec3 sample_point(const glm::dvec3 &target, RNG &rng) const;
-  double pdf(const glm::dvec3 &origin, const glm::dvec3 &dir) const;
+  vec3f sample_point(const vec3f &target, RNG &rng) const;
+  double pdf(const vec3f &origin, const vec3f &dir) const;
 
   std::optional<double> hit_p(const Ray &ray, double tmin, double tmax) const;
 
@@ -87,26 +83,24 @@ struct Mesh {
 };
 
 struct Transform {
-  glm::mat4 model{glm::mat4(1.0)};
-  glm::mat4 imodel{glm::mat4(1.0)};
+  mat4f model{mat4f(1.0)};
+  mat4f imodel{mat4f(1.0)};
 
-  static Transform from_imodel(const glm::mat4 &imodel);
-  static Transform from_model(const glm::mat4 &model);
+  static Transform from_imodel(const mat4f &imodel);
+  static Transform from_model(const mat4f &model);
 };
 
 struct Film {
-  std::vector<glm::dvec3> buffer;
+  std::vector<vec3f> buffer;
   uint16_t width;
   uint16_t height;
 
-  void set(int x, int y, const glm::dvec3 &color) {
-    buffer[y * width + x] = color;
-  }
+  void set(int x, int y, const vec3f &color) { buffer[y * width + x] = color; }
 };
 
 struct Camera {
-  Camera(const glm::dvec3 &eye, const glm::dvec3 &target, const glm::dvec3 &up,
-         double fov, double aspect);
+  Camera(const vec3f &eye, const vec3f &target, const vec3f &up, double fov,
+         double aspect);
 
   Transform transform{Transform::from_imodel(default_camera)};
   double fov{45.0};
@@ -132,3 +126,5 @@ struct Scene {
 
   std::optional<HitRecord> hit(const Ray &ray, double tmin, double tmax) const;
 };
+
+} // namespace flow

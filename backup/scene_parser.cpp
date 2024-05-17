@@ -2,8 +2,6 @@
 #include <array>
 #include <cassert>
 #include <cstring>
-
-#include <glm/gtc/type_ptr.hpp>
 #include <optional>
 #include <pugixml.hpp>
 #include <stdexcept>
@@ -49,7 +47,9 @@ float parse_float(pugi::xml_node &node) {
   return node.attribute("value").as_float();
 }
 
-std::optional<std::string> parse_reference_key(pugi::xml_node &node, const char* attribute_name ="value") {
+std::optional<std::string>
+parse_reference_key(pugi::xml_node &node,
+                    const char *attribute_name = "value") {
   auto value = std::string(node.attribute(attribute_name).as_string());
   if (value.length() > 0 && value.at(0) == '$') {
     auto key = value.substr(1);
@@ -95,8 +95,7 @@ Sampler parse_sampler(pugi::xml_node &node) {
   if (strcmp(type, "independent") == 0) {
     sampler.type = INDEPENDENT;
   }
-  auto sample_count_node =
-      node.find_child_by_attribute("name", "sample_count");
+  auto sample_count_node = node.find_child_by_attribute("name", "sample_count");
   sampler.spp = parse_integer(sample_count_node);
   return sampler;
 }
@@ -153,7 +152,7 @@ Integrator parse_integrator(pugi::xml_node &node) {
   if (res.has_value()) {
     auto key = res.value();
     if (integrators.contains(key)) {
-      auto& integrator = integrators.at(key);
+      auto &integrator = integrators.at(key);
       auto depth_node = node.find_child_by_attribute("name", "max_depth");
       integrator.max_depth = parse_integer(depth_node);
       return integrators.at(key);
@@ -179,15 +178,15 @@ Camera parse_camera(pugi::xml_node &node) {
           camera.transform = parse_transform(child);
         }
       } else if (strcmp(child.name(), "sampler") == 0) {
-          // auto type = child.attribute("type").value();
-          // if (strcmp(type, "independent") == 0) {
-          //     camera.sampler.type= INDEPENDENT;
-          //     auto spp_node = child.find_child_by_attribute("name", "sample_count");
-          //     camera.sampler.spp = parse_integer(spp_node);
-          // }
-          camera.sampler = parse_sampler(child);
-      } else if(strcmp(child.name(), "film") == 0) {
-          camera.film = parse_film(child);
+        // auto type = child.attribute("type").value();
+        // if (strcmp(type, "independent") == 0) {
+        //     camera.sampler.type= INDEPENDENT;
+        //     auto spp_node = child.find_child_by_attribute("name",
+        //     "sample_count"); camera.sampler.spp = parse_integer(spp_node);
+        // }
+        camera.sampler = parse_sampler(child);
+      } else if (strcmp(child.name(), "film") == 0) {
+        camera.film = parse_film(child);
       }
     }
   }
@@ -245,13 +244,15 @@ Shape parse_shape(pugi::xml_node &node) {
   return shape;
 }
 
-bool load_scene(const char *path) {
-    Scene scene;
+std::optional<Scene> load_scene(const char *path) {
+
   pugi::xml_document doc;
   pugi::xml_parse_result result = doc.load_file(path);
   if (!result) {
     printf("failed to load scene %s\n", path);
+    return std::nullopt;
   }
+  Scene scene;
   pugi::xml_node scene_node = doc.child("scene");
   for (auto child = scene_node.first_child(); child;
        child = child.next_sibling()) {
@@ -265,19 +266,18 @@ bool load_scene(const char *path) {
         integers.insert(std::make_pair(child.attribute("name").value(),
                                        child.attribute("value").as_int()));
       }
-    }
-    else if(strcmp(child.name(), "integrator") == 0) {
-        auto integrator = parse_integrator(child);
-        scene.integrator = integrator;
-    } else if(strcmp(child.name(), "sensor") == 0) {
-        scene.camera = parse_camera(child);
-    } else if(strcmp(child.name(), "bsdf") == 0) {
-        parse_bsdf(child);
-    } else if(strcmp(child.name(), "shape") == 0) {
-        scene.shapes.push_back(parse_shape(child));
+    } else if (strcmp(child.name(), "integrator") == 0) {
+      auto integrator = parse_integrator(child);
+      scene.integrator = integrator;
+    } else if (strcmp(child.name(), "sensor") == 0) {
+      scene.camera = parse_camera(child);
+    } else if (strcmp(child.name(), "bsdf") == 0) {
+      parse_bsdf(child);
+    } else if (strcmp(child.name(), "shape") == 0) {
+      scene.shapes.push_back(parse_shape(child));
     }
   }
-  return true;
+  return scene;
 }
 
 } // namespace Mitsuba

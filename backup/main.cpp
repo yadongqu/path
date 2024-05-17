@@ -1,13 +1,8 @@
 
 #include "scene_parser.h"
-#include <cstdint>
-#include <glm/common.hpp>
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "renderer.h"
-#include "scenes.h"
-#include <stb/stb_image_write.h>
+
 int main() {
-  auto scene = build_triangle_scene();
+  // auto scene = build_triangle_scene();
   // // auto [scene, camera, film] = build_cornell_scene();
 
   // auto film = render(scene);

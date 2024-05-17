@@ -4,18 +4,16 @@
 #include "scene_data.h"
 #include <cstdio>
 #include <future>
-#include <glm/common.hpp>
-#include <glm/fwd.hpp>
-#include <glm/geometric.hpp>
 
 #include <vector>
 
+namespace flow {
 struct Tile {
   int x;
   int y;
   int width;
   int height;
-  std::vector<glm::dvec3> buffer;
+  std::vector<vec3f> buffer;
 };
 
 Film render(const Scene &scene) {
@@ -49,7 +47,7 @@ Film render(const Scene &scene) {
   //     for (int x = 0; x < tile.width; x++) {
   //       int cur_x = x + tile.x;
   //       int cur_y = y + tile.y;
-  //       glm::dvec3 color{0.0};
+  //       vec3f color{0.0};
   //       for (int s = 0; s < samples; s++) {
   //         double u = (cur_x + rng.next_1f()) / film.width * 2.0 - 1.0;
   //         double v = 1.0 - (cur_y + rng.next_1f()) / film.height * 2.0;
@@ -74,7 +72,7 @@ Film render(const Scene &scene) {
       for (int x = 0; x < tile.width; x++) {
         int cur_x = x + tile.x;
         int cur_y = y + tile.y;
-        glm::dvec3 color{0.0};
+        vec3f color{0.0};
         for (int s = 0; s < scene.samples; s++) {
           double u = (cur_x + rng.next_1f()) / scene.width * 2.0 - 1.0;
           double v = 1.0 - (cur_y + rng.next_1f()) / scene.height * 2.0;
@@ -115,3 +113,5 @@ Film render(const Scene &scene) {
   }
   return film;
 }
+
+} // namespace flow

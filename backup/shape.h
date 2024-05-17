@@ -1,15 +1,14 @@
 #pragma once
-#include <glm/glm.hpp>
+#include "flow_math.h"
 #include <vector>
-using glm::fvec3;
-using glm::fvec2;
+namespace flow {
 using std::vector;
 struct shape_data {
-    vector<fvec3> positions;
-    vector<fvec3> normals;
-    vector<fvec2> texcoords;
+  vector<vec3f> positions;
+  vector<vec3f> normals;
+  vector<vec2f> texcoords;
 };
-
 
 shape_data make_cube(float scale = 1.0);
 shape_data make_quad(float scale = 1.0);
+} // namespace flow
