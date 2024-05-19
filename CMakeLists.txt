@@ -9,7 +9,9 @@ file(GLOB_RECURSE Flow_Source_Files src/*.cpp)
 
 add_library(${PROJECT_NAME} STATIC ${Flow_Source_Files})
 
-target_include_directories(${PROJECT_NAME} PRIVATE include)
+include_directories(include)
+
+add_subdirectory(tests)
 
 # add_executable(${PROJECT_NAME} main.cpp flow_math.cpp scene_parser.cpp)
 # add_subdirectory(extern/fast_float)
