@@ -17,9 +17,6 @@ enum class TokenType {
   ListStart,
   ListEnd,
   Identifier,
-  NewLine,
-  Indent,
-  Dedent,
   Undefined,
 };
 
@@ -47,41 +44,32 @@ struct Tokenizer {
   explicit Tokenizer(std::string_view source)
       : source(source), position(0), row(0), column(0) {}
 
+  // std::optional<Token> next() {
+  //   while (true) {
+  //     char ch = source[position];
+  //     if (ch == EOF) {
+  //       return std::nullopt;
+  //     } else if (ch == ' ' || ch == '\n' || ch == '\t' || ch == '\r') {
+  //       continue;
+  //     } else if (ch == '"') {
+  //       size_t count = peek_while([&](char ch) { return ch != '"'; }, 1);
+  //       position += count + 1;
+  //       return Token{.type = TokenType::StringLiteral,
+  //                    .value = source.substr(position + 1, count - 1)};
+  //     } else if (ch == '[') {
+  //       position += 1;
+  //       return Token {
+  //         .type = TokenType::ListStart, .value = source.substr(position, 1),
+  //       }
+  //     }
+  //   }
+  // }
+
   std::vector<Token> tokenize() {
     std::vector<Token> tokens;
-    size_t indent_level = 0;
-    size_t indent_length = 4;
-    bool in_array = false;
-    bool new_line = false;
     while (position < source.length()) {
       char b = source[position];
-      if (column == 0 && !in_array) {
-        size_t white_space_count =
-            peek_while([&](char ch) { return ch == ' '; }, 0);
-        position += white_space_count;
-        column += white_space_count;
-        size_t count = white_space_count / indent_length;
-        if (count < indent_level) {
-          size_t n = indent_level - count;
-          for (size_t i = 0; i < n; ++i) {
-            tokens.push_back(Token{.type = TokenType::Dedent});
-          }
-          indent_level -= n;
-        } else if (count > indent_level) {
-          size_t n = count - indent_level;
-          for (size_t i = 0; i < n; ++i) {
-            tokens.push_back(Token{.type = TokenType::Indent});
-          }
-          indent_level += n;
-        }
-      }
-
       if (b == '\n') {
-        if (!in_array) {
-          tokens.push_back(Token{
-              .type = TokenType::NewLine,
-          });
-        }
         position += 1;
         column = 0;
         row += 1;
@@ -99,12 +87,10 @@ struct Tokenizer {
         tokens.push_back(Token{.type = TokenType::ListStart});
         position += 1;
         column += 1;
-        in_array = true;
       } else if (b == ']') {
         tokens.push_back(Token{.type = TokenType::ListEnd});
         position += 1;
         column += 1;
-        in_array = false;
       } else if (b == '"') {
         size_t count = peek_while([&](char ch) { return ch != '"'; }, 1);
         tokens.push_back(
@@ -127,10 +113,6 @@ struct Tokenizer {
                   << std::endl;
         exit(1);
       }
-    }
-    while (indent_level > 0) {
-      tokens.push_back(Token{.type = TokenType::Dedent});
-      indent_level -= 1;
     }
     return tokens;
   }
@@ -265,22 +247,16 @@ struct Parser {
         }
         break;
       }
-
-      case TokenType::NewLine:
-      case TokenType::Dedent:
-        position += 1;
-        break;
-
       default:
         std::cout << token << std::endl;
         std::cout << "not implemented" << std::endl;
         exit(1);
       }
     }
+    return scene_data;
   }
 
   void parse_world(SceneData &scene_data) {
-    position += 1;
     position += 1;
     while (tokens.at(position).type == TokenType::Identifier &&
            tokens.at(position).value == "MakeNamedMaterial") {
@@ -289,26 +265,24 @@ struct Parser {
 
     while (tokens.at(position).type == TokenType::Identifier &&
            tokens.at(position).value == "NamedMaterial") {
-      scene_data.shapes.push_back(parse_shape());
+      ShapeData data;
+      data.material = parse_named_material();
+      parse_shape(data);
     }
   }
 
   void parse_attribute(SceneData &scene_data) {
     position += 1;
-    position += 1;
     ShapeData shape;
-    if (tokens.at(position).type == TokenType::Indent) {
-      position += 1;
-      while (tokens.at(position).type != TokenType::Dedent) {
-        if (tokens.at(position).value == "AreaLightSource") {
-          shape.light = parse_light();
-        } else if (tokens.at(position).value == "NamedMaterial") {
-          auto res = parse_shape();
-          shape.material = res.material;
-          shape.data = res.data;
-        }
+    while (tokens.at(position).value != "AttributeEnd") {
+      if (tokens.at(position).value == "AreaLightSource") {
+        shape.light = parse_light();
+      } else if (tokens.at(position).value == "NamedMaterial") {
+        auto res = parse_named_material();
+        shape.material = res;
+      } else if (tokens.at(position).value == "Shape") {
+        parse_shape(shape);
       }
-      position += 1;
     }
     position += 1;
   }
@@ -318,63 +292,50 @@ struct Parser {
     LightData light;
     light.kind = tokens.at(position).value;
     position += 1;
-    if (tokens.at(position).type == TokenType::Indent) {
-      position += 1;
-      while (tokens.at(position).type != TokenType::Dedent) {
-        auto [type, key] = parse_type_and_key();
-        if (type == "rgb" && key == "L") {
-          light.l = parse_values<float, 3>();
-        } else {
-          std::cerr << "unknown type and key for light " << key << ": " << type
-                    << std::endl;
-        }
-        position += 1;
+    while (tokens.at(position).type != TokenType::Identifier) {
+      auto [type, key] = parse_type_and_key();
+      if (type == "rgb" && key == "L") {
+        light.l = parse_values<float, 3>();
+      } else {
+        std::cerr << "unknown type and key for light " << key << ": " << type
+                  << std::endl;
       }
-      position += 1;
     }
     return light;
   }
 
-  ShapeData parse_shape() {
-    ShapeData shape_data;
+  std::string_view parse_named_material() {
     position += 1;
+    auto temp = tokens.at(position).value;
+    position += 1;
+    return temp;
+  }
 
-    auto material_key = tokens.at(position).value;
-    shape_data.material = material_key;
+  void parse_shape(ShapeData &shape_data) {
     position += 1;
-    if (tokens.at(position).value == "Shape") {
+    auto shape_type = tokens.at(position).value;
+    if (shape_type == "trianglemesh") {
+      TriangleMeshShapeData shape;
       position += 1;
-      auto shape_type = tokens.at(position).value;
-      if (shape_type == "trianglemesh") {
-        TriangleMeshShapeData shape;
-        position += 1;
-        position += 1;
-        if (tokens.at(position).type == TokenType::Indent) {
-          position += 1;
-          while (tokens.at(position).type != TokenType::Dedent) {
-            auto [type, key] = parse_type_and_key();
-            if (type == "point2" && key == "uv") {
-              shape.uvs = parse_unknown_values<float>();
-            } else if (type == "normal" && key == "N") {
-              shape.normals = parse_unknown_values<float>();
-            } else if (type == "point3" && key == "P") {
-              shape.positions = parse_unknown_values<float>();
-            } else if (type == "integer" && key == "indices") {
-              shape.indices = parse_unknown_values<int>();
-            } else {
-              std::cerr << "unknown key " << key << "  and type: " << type
-                        << std::endl;
-            }
-            position += 1;
-          }
-          position += 1;
+      while (tokens.at(position).type != TokenType::Identifier) {
+        auto [type, key] = parse_type_and_key();
+        if (type == "point2" && key == "uv") {
+          shape.uvs = parse_unknown_values<float>();
+        } else if (type == "normal" && key == "N") {
+          shape.normals = parse_unknown_values<float>();
+        } else if (type == "point3" && key == "P") {
+          shape.positions = parse_unknown_values<float>();
+        } else if (type == "integer" && key == "indices") {
+          shape.indices = parse_unknown_values<int>();
+        } else {
+          std::cerr << "unknown key " << key << "  and type: " << type
+                    << std::endl;
         }
-        shape_data.data = shape;
-      } else {
-        std::cerr << "unsupported shape type " << shape_type << std::endl;
       }
+      shape_data.data = shape;
+    } else {
+      std::cerr << "unsupported shape type " << shape_type << std::endl;
     }
-    return shape_data;
   }
 
   std::pair<std::string_view, MaterialData> parse_material() {
@@ -382,47 +343,41 @@ struct Parser {
     auto key = tokens.at(position).value;
     position += 1;
     MaterialData material_data;
-    if (tokens.at(position).type == TokenType::Indent) {
-      position += 1;
-      auto [type, key] = parse_type_and_key();
-      position += 1;
-      while (tokens.at(position).type != TokenType::Dedent) {
-        auto [property_type, property_key] = parse_type_and_key();
 
-        if (type == "string" && key == "diffuse") {
-          if (property_key == "reflectance" && property_type == "rgb") {
-            auto reflectance = parse_values<float, 3>();
-            material_data = MaterialData::make_diffuse(reflectance);
-          }
-        } else {
-          std::cerr << "unsupported material type " << key << std::endl;
-        }
-        position += 1;
+    {
+      auto [type, key] = parse_type_and_key();
+      std::string material_type;
+      std::array<float, 3> reflectance;
+      if (type == "string") {
+        material_type = parse_string_values<1>()[0];
       }
-      position += 1;
+
+      auto [data_type, name] = parse_type_and_key();
+      if (data_type == "rgb" && name == "reflectance") {
+        reflectance = parse_values<float, 3>();
+      } else {
+        std::cerr << "unsupported material type " << key << std::endl;
+      }
+      if (material_type == "diffuse") {
+        material_data = MaterialData::make_diffuse(reflectance);
+      }
     }
+
     return {key, material_data};
   }
 
   IntegratorData parse_integrator() {
     IntegratorData integrator_data;
     position += 1; // skip integrator identifier
-    assert(tokens.at(position).type == TokenType::StringLiteral);
     integrator_data.kind = tokens.at(position).value;
     position += 1;
-    position += 1; // skip new line
-    if (tokens.at(position).type == TokenType::Indent) {
-      position += 1; // skip indent;
-      while (tokens.at(position).type != TokenType::Dedent) {
-        auto [type, key] = parse_type_and_key();
-        if (key == "maxdepth") {
-          integrator_data.max_depth = parse_values<int, 1>()[0];
-        } else {
-          std::cerr << "unknown key " << key << std::endl;
-        }
-        position += 1; // skip new line
+    while (tokens.at(position).type != TokenType::Identifier) {
+      auto [type, key] = parse_type_and_key();
+      if (key == "maxdepth") {
+        integrator_data.max_depth = parse_values<int, 1>()[0];
+      } else {
+        std::cerr << "unknown key " << key << std::endl;
       }
-      position += 1; // skip dedent;
     }
     return integrator_data;
   }
@@ -430,7 +385,6 @@ struct Parser {
   std::array<float, 16> parse_transform() {
     position += 1;
     auto res = parse_values<float, 16>();
-    position += 1; // skip new line
     return res;
   }
 
@@ -448,16 +402,13 @@ struct Parser {
     CameraData camera;
     camera.kind = tokens.at(position).value;
     position += 1;
-    position += 1;
-    if (tokens.at(position).type == TokenType::Indent) {
-      position += 1;
+    while (tokens.at(position).type != TokenType::Identifier) {
       auto [type, key] = parse_type_and_key();
       if (type == "float" && key == "fov") {
         camera.fov = parse_values<float, 1>()[0];
+      } else {
+        std::cerr << "unknonw camera parameter " << key << std::endl;
       }
-      position += 1;
-      position += 1;
-      position += 1;
     }
     return camera;
   }
@@ -467,19 +418,14 @@ struct Parser {
     SamplerData sampler_data;
     sampler_data.kind = tokens.at(position).value;
     position += 1;
-    position += 1;
-    if (tokens.at(position).type == TokenType::Indent) {
-      position += 1;
-      while (tokens.at(position).type != TokenType::Dedent) {
-        auto [type, key] = parse_type_and_key();
-        if (key == "pixelsamples") {
-          sampler_data.samples = parse_values<int, 1>()[0];
-        } else {
-          std::cerr << "unknown key " << key << std::endl;
-        }
-        position += 1;
+
+    while (tokens.at(position).type != TokenType::Identifier) {
+      auto [type, key] = parse_type_and_key();
+      if (key == "pixelsamples") {
+        sampler_data.samples = parse_values<int, 1>()[0];
+      } else {
+        std::cerr << "unknown key " << key << std::endl;
       }
-      position += 1;
     }
     return sampler_data;
   }
@@ -489,23 +435,17 @@ struct Parser {
     PixelFilterData pixel_filter_data;
     pixel_filter_data.kind = tokens[position].value;
     position += 1;
-    position += 1;
-    if (tokens.at(position).type == TokenType::Indent) {
-      position += 1;
-      while (tokens.at(position).type != TokenType::Dedent) {
-        auto [type, key] = parse_type_and_key();
-        if (key == "xradius") {
-          if (type == "float") {
-            pixel_filter_data.x_radius = parse_values<float, 1>()[0];
-          }
-        } else if (key == "yradius") {
-          if (type == "float") {
-            pixel_filter_data.y_radius = parse_values<float, 1>()[0];
-          }
+    while (tokens.at(position).type != TokenType::Identifier) {
+      auto [type, key] = parse_type_and_key();
+      if (key == "xradius") {
+        if (type == "float") {
+          pixel_filter_data.x_radius = parse_values<float, 1>()[0];
         }
-        position += 1;
+      } else if (key == "yradius") {
+        if (type == "float") {
+          pixel_filter_data.y_radius = parse_values<float, 1>()[0];
+        }
       }
-      position += 1;
     }
     return pixel_filter_data;
   }
@@ -515,29 +455,24 @@ struct Parser {
     FilmData film_data;
     film_data.kind = tokens.at(position).value;
     position += 1;
-    position += 1;
-    if (tokens.at(position).type == TokenType::Indent) {
-      position += 1;
-      while (tokens.at(position).type != TokenType::Dedent) {
-        auto [type, key] = parse_type_and_key();
-        if (key == "filename" && type == "string") {
-          film_data.filename = parse_string_values<1>()[0];
-        } else if (type == "integer") {
-          if (key == "xresolution") {
-            film_data.x_resolution = parse_values<int, 1>()[0];
-          } else if (key == "yresolution") {
-            film_data.y_resolution = parse_values<int, 1>()[0];
-          } else {
-            std::cerr << "unknown key " << key << std::endl;
-          }
-        } else {
 
-          std::cerr << "unknown property " << key << " : " << type << std::endl;
+    while (tokens.at(position).type != TokenType::Identifier) {
+      auto [type, key] = parse_type_and_key();
+      if (key == "filename" && type == "string") {
+        film_data.filename = parse_string_values<1>()[0];
+      } else if (type == "integer") {
+        if (key == "xresolution") {
+          film_data.x_resolution = parse_values<int, 1>()[0];
+        } else if (key == "yresolution") {
+          film_data.y_resolution = parse_values<int, 1>()[0];
+        } else {
+          std::cerr << "unknown key " << key << std::endl;
         }
-        position += 1;
+      } else {
+        std::cerr << "unknown property " << key << " : " << type << std::endl;
       }
-      position += 1;
     }
+
     return film_data;
   }
 

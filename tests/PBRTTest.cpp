@@ -25,4 +25,5 @@ TEST_CASE("test parser") {
 
   Parser parser(tokens);
   parser.parse();
+  std::cout << "success" << std::endl;
 }
